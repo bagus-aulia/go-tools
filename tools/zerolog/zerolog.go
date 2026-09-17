@@ -8,6 +8,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/rs/zerolog/pkgerrors"
+	"gopkg.in/natefinch/lumberjack.v2"
 )
 
 // LoggerConfig holds the global logger configuration
@@ -18,6 +19,11 @@ type LoggerConfig struct {
 	TimeFormat    string
 	EnableCaller  bool
 	EnableStack   bool
+	// Log rotation settings
+	MaxSize    int  // Maximum file size in MB before rotation (default: 100)
+	MaxBackups int  // Maximum number of old log files to keep (default: 3)
+	MaxAge     int  // Maximum age of a log file in days before it's deleted (default: 30)
+	Compress   bool // Whether to compress rotated log files (default: true)
 }
 
 // DefaultLoggerConfig returns default logger configuration
@@ -29,6 +35,10 @@ func DefaultLoggerConfig() LoggerConfig {
 		TimeFormat:    time.RFC822,
 		EnableCaller:  false,
 		EnableStack:   true,
+		MaxSize:       100,  // 100 MB
+		MaxBackups:    3,    // Keep 3 old files
+		MaxAge:        30,   // Delete files older than 30 days
+		Compress:      true, // Compress rotated files
 	}
 }
 
@@ -41,6 +51,10 @@ func ConfigureZerolog(level string, enableConsole bool, logFile string) {
 		TimeFormat:    time.RFC822,
 		EnableCaller:  false,
 		EnableStack:   true,
+		MaxSize:       100,
+		MaxBackups:    3,
+		MaxAge:        30,
+		Compress:      true,
 	}
 	ConfigureZerologWithConfig(config)
 }
@@ -75,12 +89,16 @@ func ConfigureZerologWithConfig(config LoggerConfig) {
 		writers = append(writers, consoleWriter)
 	}
 
-	// File output
+	// File output with rotation
 	if config.LogFile != "" {
-		file, err := os.OpenFile(config.LogFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
-		if err == nil {
-			writers = append(writers, file)
+		lumberjackLogger := &lumberjack.Logger{
+			Filename:   config.LogFile,
+			MaxSize:    config.MaxSize,    // megabytes
+			MaxBackups: config.MaxBackups, // number of backups
+			MaxAge:     config.MaxAge,     // days
+			Compress:   config.Compress,   // compress rotated files
 		}
+		writers = append(writers, lumberjackLogger)
 	}
 
 	// Multi-writer setup
